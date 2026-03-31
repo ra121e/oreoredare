@@ -1,4 +1,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!--
+         今回の MVP では「実際の着信を Android ネイティブで検知し、
+         Flutter 側の既存オーバーレイを AI 応答中状態で自動表示する」ことを優先する。
+         incoming_call の主経路は CallScreeningService、
+         通話開始/終了の補助通知は PhoneStateListener で扱う。
+    -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+
     <application
         android:label="oreoredare"
         android:name="${applicationName}"
@@ -30,6 +38,20 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!--
+             Android 10 以降で caller ID / spam role と組み合わせて着信直後のイベントを受け取る。
+             初回 MVP では着信をブロックせず、Flutter 側へ incoming_call を渡すだけにとどめる。
+             role が未付与の間は PhoneStateListener を暫定入口として使う。
+        -->
+        <service
+            android:name=".OreOreCallScreeningService"
+            android:exported="true"
+            android:permission="android.permission.BIND_SCREENING_SERVICE">
+            <intent-filter>
+                <action android:name="android.telecom.CallScreeningService" />
+            </intent-filter>
+        </service>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
