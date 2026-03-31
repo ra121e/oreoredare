@@ -4,7 +4,10 @@
          Flutter 側の既存オーバーレイを AI 応答中状態で自動表示する」ことを優先する。
          incoming_call の主経路は CallScreeningService、
          通話開始/終了の補助通知は PhoneStateListener で扱う。
+         連絡先登録済み番号も screening 対象に含めるため、
+         READ_CONTACTS も宣言しておく。
     -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
 
     <application

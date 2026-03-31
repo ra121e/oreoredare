@@ -81,6 +81,7 @@ class _IncomingCallOverlayListenerState
       debugPrint(
         'IncomingCallOverlayListener[$reason]: source=${monitoringState.source}'
         ' callScreeningRoleGranted=${monitoringState.callScreeningRoleGranted}'
+        ' contactsPermissionGranted=${monitoringState.contactsPermissionGranted}'
         ' callScreeningRoleRequested=${monitoringState.callScreeningRoleRequested}',
       );
 

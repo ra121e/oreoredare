@@ -40,10 +40,12 @@ class IncomingCallMonitor(
 
     fun initializeMonitoring(): Map<String, Any?> {
         val hasPermission = hasReadPhoneStatePermission()
+        val hasContactsPermission = hasReadContactsPermission()
 
         if (!hasPermission) {
             return mapOf(
                 "permissionGranted" to false,
+                "contactsPermissionGranted" to hasContactsPermission,
                 "monitoringActive" to false,
                 "source" to "call_screening_service",
                 "callScreeningRoleGranted" to isCallScreeningRoleGranted(),
@@ -74,14 +76,24 @@ class IncomingCallMonitor(
 
         return mapOf(
             "permissionGranted" to true,
+            "contactsPermissionGranted" to hasContactsPermission,
             "monitoringActive" to true,
             "source" to if (roleGranted) "call_screening_service" else "phone_state_listener_fallback",
             "callScreeningRoleGranted" to roleGranted,
             "shouldRequestCallScreeningRole" to (!roleGranted && supportsCallScreeningRole()),
             "message" to if (roleGranted) {
-                "着信監視を開始しました。incoming_call は CallScreeningService から受け取ります。"
+                if (hasContactsPermission) {
+                    "着信監視を開始しました。incoming_call は CallScreeningService から受け取り、連絡先登録済み番号も対象にします。"
+                } else {
+                    "着信監視を開始しました。incoming_call は CallScreeningService から受け取ります。連絡先登録済み番号も対象にするには連絡先権限が必要です。"
+                }
             } else {
-                "着信監視を開始しました。Call Screening role が未付与のため、まずは PhoneStateListener を暫定入口として使います。"
+                buildString {
+                    append("着信監視を開始しました。Call Screening role が未付与のため、まずは PhoneStateListener を暫定入口として使います。")
+                    if (!hasContactsPermission) {
+                        append(" 連絡先登録済み番号を含めた screening には、Call Screening role と連絡先権限の両方が必要です。")
+                    }
+                }
             },
         )
     }
@@ -133,6 +145,13 @@ class IncomingCallMonitor(
         return ContextCompat.checkSelfPermission(
             activity,
             Manifest.permission.READ_PHONE_STATE,
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun hasReadContactsPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            activity,
+            Manifest.permission.READ_CONTACTS,
         ) == PackageManager.PERMISSION_GRANTED
     }
 

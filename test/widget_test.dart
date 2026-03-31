@@ -22,6 +22,7 @@ class FakeIncomingCallBridge implements IncomingCallBridge {
   Future<IncomingCallMonitoringState> initializeMonitoring() async {
     return const IncomingCallMonitoringState(
       permissionGranted: true,
+      contactsPermissionGranted: true,
       monitoringActive: true,
       callScreeningRoleGranted: true,
       source: 'test',

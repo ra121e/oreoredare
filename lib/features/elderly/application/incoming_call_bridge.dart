@@ -21,12 +21,15 @@ class AndroidIncomingCallBridge implements IncomingCallBridge {
   static const _methodChannel = MethodChannel(
     'oreoredare/incoming_call_bridge',
   );
+  // resume ごとに同じ任意権限ダイアログを出し続けないよう、セッション中の再要求を抑える。
+  static bool _hasAttemptedContactsPermissionRequest = false;
 
   @override
   Future<IncomingCallMonitoringState> initializeMonitoring() async {
     if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
       return const IncomingCallMonitoringState(
         permissionGranted: false,
+        contactsPermissionGranted: false,
         monitoringActive: false,
         callScreeningRoleGranted: false,
         statusMessage: 'Android 以外では着信監視を開始しません。',
@@ -39,11 +42,14 @@ class AndroidIncomingCallBridge implements IncomingCallBridge {
       if (!permissionStatus.isGranted) {
         return const IncomingCallMonitoringState(
           permissionGranted: false,
+          contactsPermissionGranted: false,
           monitoringActive: false,
           callScreeningRoleGranted: false,
           statusMessage: '電話権限が未許可のため、着信監視を開始できません。',
         );
       }
+
+      final contactsPermissionStatus = await _ensureContactsPermission();
 
       final response =
           await _methodChannel.invokeMapMethod<String, dynamic>(
@@ -51,7 +57,9 @@ class AndroidIncomingCallBridge implements IncomingCallBridge {
           ) ??
           const <String, dynamic>{};
 
-      final state = IncomingCallMonitoringState.fromMap(response);
+      final state = IncomingCallMonitoringState.fromMap(
+        response,
+      ).copyWith(contactsPermissionGranted: contactsPermissionStatus.isGranted);
 
       if (state.shouldRequestCallScreeningRole) {
         final roleResponse =
@@ -88,6 +96,7 @@ class AndroidIncomingCallBridge implements IncomingCallBridge {
     } on MissingPluginException {
       return const IncomingCallMonitoringState(
         permissionGranted: false,
+        contactsPermissionGranted: false,
         monitoringActive: false,
         callScreeningRoleGranted: false,
         statusMessage: 'ネイティブ着信監視プラグインが見つかりませんでした。',
@@ -102,11 +111,30 @@ class AndroidIncomingCallBridge implements IncomingCallBridge {
 
       return IncomingCallMonitoringState(
         permissionGranted: false,
+        contactsPermissionGranted: false,
         monitoringActive: false,
         callScreeningRoleGranted: false,
         statusMessage: '着信監視の初期化に失敗しました: ${error.message}',
       );
     }
+  }
+
+  Future<PermissionStatus> _ensureContactsPermission() async {
+    final currentStatus = await Permission.contacts.status;
+
+    if (currentStatus.isGranted ||
+        currentStatus.isPermanentlyDenied ||
+        currentStatus.isRestricted ||
+        currentStatus.isLimited) {
+      return currentStatus;
+    }
+
+    if (_hasAttemptedContactsPermissionRequest) {
+      return currentStatus;
+    }
+
+    _hasAttemptedContactsPermissionRequest = true;
+    return Permission.contacts.request();
   }
 
   @override
@@ -134,6 +162,7 @@ class AndroidIncomingCallBridge implements IncomingCallBridge {
 class IncomingCallMonitoringState {
   const IncomingCallMonitoringState({
     required this.permissionGranted,
+    required this.contactsPermissionGranted,
     required this.monitoringActive,
     required this.callScreeningRoleGranted,
     this.callScreeningRoleRequested = false,
@@ -143,6 +172,7 @@ class IncomingCallMonitoringState {
   });
 
   final bool permissionGranted;
+  final bool contactsPermissionGranted;
   final bool monitoringActive;
   final bool callScreeningRoleGranted;
   final bool callScreeningRoleRequested;
@@ -153,6 +183,7 @@ class IncomingCallMonitoringState {
   factory IncomingCallMonitoringState.fromMap(Map<String, dynamic> raw) {
     return IncomingCallMonitoringState(
       permissionGranted: raw['permissionGranted'] == true,
+      contactsPermissionGranted: raw['contactsPermissionGranted'] == true,
       monitoringActive: raw['monitoringActive'] == true,
       callScreeningRoleGranted: raw['callScreeningRoleGranted'] == true,
       shouldRequestCallScreeningRole:
@@ -164,6 +195,7 @@ class IncomingCallMonitoringState {
 
   IncomingCallMonitoringState copyWith({
     bool? permissionGranted,
+    bool? contactsPermissionGranted,
     bool? monitoringActive,
     bool? callScreeningRoleGranted,
     bool? callScreeningRoleRequested,
@@ -173,6 +205,8 @@ class IncomingCallMonitoringState {
   }) {
     return IncomingCallMonitoringState(
       permissionGranted: permissionGranted ?? this.permissionGranted,
+      contactsPermissionGranted:
+          contactsPermissionGranted ?? this.contactsPermissionGranted,
       monitoringActive: monitoringActive ?? this.monitoringActive,
       callScreeningRoleGranted:
           callScreeningRoleGranted ?? this.callScreeningRoleGranted,
